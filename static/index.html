@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gin Rummy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="pass-overlay" class="overlay hidden">
+    <div class="overlay-box">
+        <div class="overlay-icon">🃏</div>
+        <h2 id="pass-title">Player 1's Turn</h2>
+        <p>Pass the screen to <span id="pass-player">Player 1</span></p>
+        <button class="btn-primary" onclick="revealHand()">Reveal Hand</button>
+    </div>
+</div>
+
+<div id="gameover-overlay" class="overlay hidden">
+    <div class="overlay-box wide">
+        <h2 id="go-title">Hand Over</h2>
+        <div id="go-result"></div>
+        <div id="go-hands"></div>
+        <div id="go-scores"></div>
+        <button class="btn-primary" onclick="newGame()">New Hand</button>
+    </div>
+</div>
+
+<header>
+    <h1>Gin Rummy</h1>
+    <div class="header-right">
+        <div class="score-block">
+            <span class="score-label">P1</span>
+            <span class="score-value" id="score-p1">0</span>
+        </div>
+        <div class="score-block">
+            <span class="score-label">P2</span>
+            <span class="score-value" id="score-p2">0</span>
+        </div>
+        <button class="btn-secondary" onclick="newGame()">New Game</button>
+    </div>
+</header>
+
+<main>
+    <section class="player-area">
+        <div class="player-label" id="label-opponent">Player 2</div>
+        <div class="hand" id="hand-opponent"></div>
+    </section>
+
+    <section class="table-center">
+        <div class="pile-group">
+            <div class="pile" id="stock-pile" onclick="handleStockClick()">
+                <div class="card face-down" id="stock-card">
+                    <span id="stock-count">0</span>
+                </div>
+                <span class="pile-label">Stock</span>
+            </div>
+            <div class="pile" id="discard-pile" onclick="handleDiscardClick()">
+                <div class="card placeholder" id="discard-top">
+                    <span class="placeholder-text">—</span>
+                </div>
+                <span class="pile-label">Discard</span>
+            </div>
+        </div>
+        <div id="deadwood-hint"></div>
+    </section>
+
+    <section class="player-area">
+        <div class="player-label" id="label-current">Player 1</div>
+        <div class="hand" id="hand-current"></div>
+    </section>
+</main>
+
+<footer>
+    <div class="actions">
+        <button class="btn-action" id="btn-discard" onclick="doDiscard()" disabled>
+            Discard
+        </button>
+        <button class="btn-action btn-knock" id="btn-knock" onclick="doKnock()" disabled>
+            Knock
+        </button>
+    </div>
+    <div class="message" id="message">Loading…</div>
+</footer>
+
+<script src="game.js"></script>
+</body>
+</html>
