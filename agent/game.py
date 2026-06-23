@@ -18,6 +18,7 @@ class GameState:
         self.current_player: int = 0
         self.phase: str = 'draw'
         self.drawn_card: Optional[Card] = None
+        self.drew_from_discard: bool = False
         self.game_over: bool = False
         self.winner: Optional[int] = None
         self.knock_info: Optional[dict] = None
@@ -50,6 +51,7 @@ class GameState:
 
         self.hands[p].append(card)
         self.drawn_card = card
+        self.drew_from_discard = (source == 'discard')
         self.phase = 'discard'
         src = 'the discard' if source == 'discard' else 'the stock'
         self.message = f"Player {p + 1} drew from {src} — select a card to discard or knock"
@@ -65,10 +67,13 @@ class GameState:
         card = self._find_in_hand(p, card_str)
         if card is None:
             return {'ok': False, 'error': f'{card_str} not in hand'}
+        if self.drew_from_discard and card == self.drawn_card:
+            return {'ok': False, 'error': "Can't discard the card you took from the discard pile"}
 
         self.hands[p].remove(card)
         self.discard_pile.append(card)
         self.drawn_card = None
+        self.drew_from_discard = False
         self.turn_count += 1
         self.current_player = 1 - p
         self.phase = 'draw'
@@ -85,6 +90,8 @@ class GameState:
         card = self._find_in_hand(p, card_str)
         if card is None:
             return {'ok': False, 'error': f'{card_str} not in hand'}
+        if self.drew_from_discard and card == self.drawn_card:
+            return {'ok': False, 'error': "Can't discard the card you took from the discard pile"}
 
         test_hand = [c for c in self.hands[p] if c is not card]
         _, dw_cards = find_best_melds(test_hand)

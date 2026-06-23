@@ -63,9 +63,9 @@ class ProbabilisticPolicy:
         take = should_take_discard(hand, discard_top, bs, self.alpha, self.gamma)
         return "discard" if take else "stock"
 
-    def choose_discard(self, hand: List[Card], bs) -> Card:
-        """Pick the discard from an 11-card hand."""
-        return best_discard(hand, bs, self.alpha)
+    def choose_discard(self, hand: List[Card], bs, forbidden: Optional[Card] = None) -> Card:
+        """Pick the discard from an 11-card hand (excluding `forbidden`)."""
+        return best_discard(hand, bs, self.alpha, forbidden=forbidden)
 
     def knock_ev(self, hand: List[Card], bs) -> Optional[dict]:
         """Full knock distribution (EV, P(undercut), ...) or None if illegal."""
