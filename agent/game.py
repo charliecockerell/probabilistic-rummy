@@ -134,7 +134,7 @@ class GameState:
             self.winner = opp
             result = 'undercut'
         else:
-            score = k_dw_val - o_dw_val
+            score = o_dw_val - k_dw_val
             self.scores[knocker] += score
             self.winner = knocker
             result = 'knock'
