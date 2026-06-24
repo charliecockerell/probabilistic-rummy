@@ -2,8 +2,14 @@
 let state = null;
 let selectedCard = null;
 let handRevealed = false;
+let mode = 'human';                 // 'human' (hot-seat) | 'greedy' | 'probabilistic'
+let beliefVisible = false;          // belief histogram toggle (probabilistic bot only)
+const isBot = () => mode !== 'human';
+const hasBelief = () => mode === 'probabilistic';
 
 // ── API ──────────────────────────────────────────────────────────────────────
+let busy = false;                   // a request is in flight — block new actions
+
 async function api(endpoint, method = 'GET', body = null) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
     if (body !== null) opts.body = JSON.stringify(body);
@@ -12,50 +18,86 @@ async function api(endpoint, method = 'GET', body = null) {
     return res.json();
 }
 
+// Run a network action with a single-flight lock. Blocks concurrent clicks
+// (e.g. while the bot is thinking) and, on any failure, re-syncs the client
+// from the server so the UI can never get wedged out of phase.
+async function act(fn) {
+    if (busy) return;
+    busy = true;
+    setBusyUI(true);
+    try {
+        await fn();
+    } catch (e) {
+        try { state = await api('state'); } catch (_) {}
+        showMsg('Connection hiccup — resynced with the table.', true);
+    } finally {
+        busy = false;
+        setBusyUI(false);
+        render();
+    }
+}
+
+function setBusyUI(on) {
+    document.body.classList.toggle('busy', on);
+    if (on) el('message').textContent = 'Working…';
+    updateButtons();
+}
+
 // ── Actions ──────────────────────────────────────────────────────────────────
 async function newGame() {
-    state = await api('new_game', 'POST');
-    selectedCard = null;
-    handRevealed = false;
-    render();
+    mode = el('opponent-select').value;
+    await act(async () => {
+        state = await api('new_game', 'POST', { opponent: mode });
+        selectedCard = null;
+        handRevealed = isBot();      // bot mode: human's view is always up, no pass screen
+    });
 }
 
 async function handleStockClick() {
-    if (!state || state.phase !== 'draw' || state.game_over || !handRevealed) return;
-    state = await api('draw', 'POST', { source: 'stock' });
-    selectedCard = null;
-    render();
+    if (busy || !state || state.phase !== 'draw' || state.game_over || !handRevealed) return;
+    await act(async () => {
+        state = await api('draw', 'POST', { source: 'stock' });
+        selectedCard = null;
+    });
 }
 
 async function handleDiscardClick() {
-    if (!state || state.phase !== 'draw' || state.game_over || !handRevealed) return;
+    if (busy || !state || state.phase !== 'draw' || state.game_over || !handRevealed) return;
     if (!state.discard_top) return;
-    state = await api('draw', 'POST', { source: 'discard' });
-    selectedCard = null;
-    render();
+    await act(async () => {
+        state = await api('draw', 'POST', { source: 'discard' });
+        selectedCard = null;
+    });
 }
 
 async function doDiscard() {
-    if (!selectedCard) return;
-    const resp = await api('discard', 'POST', { card: selectedCard });
-    if (!resp.ok) { showMsg(resp.error, true); return; }
-    state = resp;
-    selectedCard = null;
-    if (!state.game_over) handRevealed = false;
-    render();
+    if (busy || !selectedCard) return;
+    await act(async () => {
+        const resp = await api('discard', 'POST', { card: selectedCard });
+        if (!resp.ok) { showMsg(resp.error, true); return; }
+        state = resp;
+        selectedCard = null;
+        if (!state.game_over) handRevealed = isBot();   // hot-seat hides for the pass; bot stays revealed
+    });
 }
 
 async function doKnock() {
-    if (!selectedCard) return;
-    const resp = await api('knock', 'POST', { card: selectedCard });
-    if (!resp.ok) { showMsg(resp.error, true); return; }
-    state = resp;
-    selectedCard = null;
-    render();
+    if (busy || !selectedCard) return;
+    await act(async () => {
+        const resp = await api('knock', 'POST', { card: selectedCard });
+        if (!resp.ok) { showMsg(resp.error, true); return; }
+        state = resp;
+        selectedCard = null;
+    });
 }
 
 function revealHand() {
     handRevealed = true;
+    render();
+}
+
+function toggleBelief() {
+    beliefVisible = !beliefVisible;
     render();
 }
 
@@ -98,7 +140,7 @@ function makeCard(cardStr, { faceDown = false, selected = false, inMeld = false,
 
 // ── Interaction ───────────────────────────────────────────────────────────────
 function onCardClick(cardStr) {
-    if (!state || state.phase !== 'discard' || state.game_over || !handRevealed) return;
+    if (busy || !state || state.phase !== 'discard' || state.game_over || !handRevealed) return;
     selectedCard = selectedCard === cardStr ? null : cardStr;
     renderCurrentHand();
     updateButtons();
@@ -108,6 +150,7 @@ function onCardClick(cardStr) {
 // ── Render ───────────────────────────────────────────────────────────────────
 function render() {
     if (!state) return;
+    updateBeliefButton();
 
     if (state.game_over) {
         hide('pass-overlay');
@@ -117,7 +160,7 @@ function render() {
 
     hide('gameover-overlay');
 
-    if (!handRevealed) {
+    if (!handRevealed && !isBot()) {
         showPassScreen();
         return;
     }
@@ -135,9 +178,11 @@ function renderGame() {
     el('score-p2').textContent = state.scores[1];
 
     // Labels
-    el('label-current').textContent = `Player ${p + 1}`;
+    el('label-current').textContent = isBot() ? 'You' : `Player ${p + 1}`;
     el('label-current').className = 'player-label active';
-    el('label-opponent').textContent = `Player ${opp + 1}`;
+    el('label-opponent').textContent = isBot()
+        ? (state.opponent_name || 'Bot')
+        : `Player ${opp + 1}`;
     el('label-opponent').className = 'player-label';
 
     // Opponent hand (face down)
@@ -157,6 +202,7 @@ function renderGame() {
     renderCurrentHand();
     updateButtons();
     updateDeadwoodHint();
+    renderBelief();
     showMsg(state.message);
 }
 
@@ -164,13 +210,78 @@ function renderCurrentHand() {
     const p = state.current_player;
     const handEl = el('hand-current');
     handEl.innerHTML = '';
+
+    // Own-melds view: server splits the active hand into melds vs deadwood.
+    const view = state.own_view || {};
+    const meldCards = new Set((view.current_melds || []).flat());
+
     state.hands[p].forEach(c => {
         handEl.appendChild(makeCard(c, {
             selected: c === selectedCard,
             drawn: c === state.drawn_card,
+            inMeld: meldCards.has(c),
+            deadwood: meldCards.size > 0 && !meldCards.has(c),
             clickable: true,
         }));
     });
+}
+
+// ── Belief histogram (probabilistic bot) ───────────────────────────────────────
+const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const SUITS = ['S', 'H', 'D', 'C'];
+
+function updateBeliefButton() {
+    const btn = el('btn-belief');
+    btn.style.display = hasBelief() ? '' : 'none';
+    btn.textContent = beliefVisible ? 'Hide belief' : 'Show belief';
+}
+
+function renderBelief() {
+    updateBeliefButton();
+    const panel = el('belief-panel');
+    if (!hasBelief() || !beliefVisible || !state || !state.belief) {
+        hide('belief-panel');
+        return;
+    }
+    show('belief-panel');
+
+    const sum = state.belief_sum;
+    el('belief-sum').textContent = sum != null ? `Σ = ${sum.toFixed(2)}` : '';
+
+    const grid = el('belief-grid');
+    grid.innerHTML = '';
+
+    // Header row: blank corner + rank labels
+    grid.appendChild(beliefLabel(''));
+    RANKS.forEach(r => grid.appendChild(beliefLabel(r)));
+
+    SUITS.forEach(s => {
+        grid.appendChild(beliefLabel(SUIT_SYM[s], RED.has(s)));
+        RANKS.forEach(r => {
+            const cardStr = `${r}${s}`;
+            const p = state.belief[cardStr] ?? 0;
+            grid.appendChild(beliefCell(p));
+        });
+    });
+}
+
+function beliefLabel(text, red = false) {
+    const d = document.createElement('div');
+    d.className = 'belief-axis' + (red ? ' red' : '');
+    d.textContent = text;
+    return d;
+}
+
+function beliefCell(p) {
+    const d = document.createElement('div');
+    d.className = 'belief-cell';
+    if (p >= 0.999) d.classList.add('certain');       // known held (P=1)
+    else if (p <= 0.001) d.classList.add('dead');     // impossible (P=0)
+    // accent fill scaled by probability
+    d.style.background = `rgba(0, 170, 204, ${Math.min(1, p).toFixed(3)})`;
+    d.textContent = p >= 0.005 ? p.toFixed(2).slice(1) : '';  // ".42" style, blank if ~0
+    d.title = p.toFixed(3);
+    return d;
 }
 
 function rebuildDiscardTop() {
@@ -188,26 +299,26 @@ function rebuildDiscardTop() {
 }
 
 function updateButtons() {
-    const canAct = state && state.phase === 'discard' && selectedCard !== null && handRevealed;
+    const canAct = !busy && state && state.phase === 'discard' && selectedCard !== null && handRevealed;
     el('btn-discard').disabled = !canAct;
     el('btn-knock').disabled = !canAct;
 }
 
 function updateDeadwoodHint() {
     const hint = el('deadwood-hint');
-    if (!state || !handRevealed || state.phase !== 'discard') {
+    if (!state || !handRevealed || !state.own_view) {
         hint.textContent = '';
         return;
     }
-    // Show deadwood of current hand (11 cards) minus selected card
-    const p = state.current_player;
-    if (!selectedCard) {
-        hint.textContent = '';
-        return;
+    const view = state.own_view;
+    const dw = view.current_deadwood_value;
+    const meldCount = (view.current_melds || []).length;
+    const meldTxt = meldCount === 1 ? '1 meld' : `${meldCount} melds`;
+    let txt = `Deadwood ${dw} · ${meldTxt}`;
+    if (state.phase === 'discard') {
+        txt += dw <= 10 ? ' — you can knock' : ' — knock needs deadwood ≤ 10';
     }
-    // Compute deadwood client-side (rough: sum of unmatched card values)
-    // We just show a prompt to the player
-    hint.textContent = `Discarding ${selectedCard} — knock if deadwood ≤ 10`;
+    hint.textContent = txt;
 }
 
 // ── Pass screen ───────────────────────────────────────────────────────────────
@@ -290,9 +401,8 @@ function showMsg(text, isError = false) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-    state = await api('state');
-    handRevealed = false;
-    render();
+    // Start straight into a game against the selected opponent (default: bot).
+    await newGame();
 }
 
 init();

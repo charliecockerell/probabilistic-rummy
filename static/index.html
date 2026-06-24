@@ -38,6 +38,12 @@
             <span class="score-label">P2</span>
             <span class="score-value" id="score-p2">0</span>
         </div>
+        <select id="opponent-select" class="opponent-select" title="Opponent">
+            <option value="probabilistic">Probabilistic bot</option>
+            <option value="greedy">Greedy bot</option>
+            <option value="human">Human (hot-seat)</option>
+        </select>
+        <button class="btn-secondary" id="btn-belief" onclick="toggleBelief()" title="Show what the bot believes you hold">Show belief</button>
         <button class="btn-secondary" onclick="newGame()">New Game</button>
     </div>
 </header>
@@ -46,6 +52,14 @@
     <section class="player-area">
         <div class="player-label" id="label-opponent">Player 2</div>
         <div class="hand" id="hand-opponent"></div>
+    </section>
+
+    <section class="belief-panel hidden" id="belief-panel">
+        <div class="belief-head">
+            <span class="belief-title">Bot's belief — P(card in your hand)</span>
+            <span class="belief-sum" id="belief-sum"></span>
+        </div>
+        <div class="belief-grid" id="belief-grid"></div>
     </section>
 
     <section class="table-center">

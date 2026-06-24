@@ -129,6 +129,19 @@ header h1::before {
 }
 .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
+.opponent-select {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    padding: 7px 10px;
+    border-radius: 7px;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.opponent-select:hover { border-color: var(--accent); color: var(--accent); }
+
 .btn-action {
     background: var(--bg-elev);
     color: var(--ink);
@@ -206,6 +219,85 @@ main {
     gap: 6px;
     min-height: calc(var(--card-h) + 18px);
     padding: 6px 0 14px;
+}
+
+/* While a request is in flight: signal waiting and swallow stray clicks. */
+body.busy { cursor: progress; }
+body.busy .pile.can-draw,
+body.busy .hand { pointer-events: none; opacity: 0.92; }
+
+/* ── Belief histogram panel ──────────────────────────────────────────────── */
+.belief-panel {
+    align-self: center;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 16px;
+    box-shadow: var(--shadow-sm);
+    max-width: 100%;
+}
+
+.belief-panel.hidden { display: none; }
+
+.belief-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 10px;
+}
+
+.belief-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+}
+
+.belief-sum {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.belief-grid {
+    display: grid;
+    grid-template-columns: 18px repeat(13, 1fr);
+    gap: 2px;
+}
+
+.belief-axis {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--ink-faint);
+    min-width: 22px;
+}
+.belief-axis.red { color: var(--red); }
+
+.belief-cell {
+    height: 24px;
+    min-width: 22px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.58rem;
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.belief-cell.dead { opacity: 0.3; }
+.belief-cell.certain {
+    border-color: var(--good);
+    box-shadow: 0 0 0 1px var(--good);
+    color: #fff;
 }
 
 /* ── Table center ────────────────────────────────────────────────────────── */
