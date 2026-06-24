@@ -9,7 +9,8 @@ from __future__ import annotations
 from itertools import combinations
 from typing import List, Optional, Tuple
 
-from agent.cards import Card, SUITS, RANKS, RANK_INDEX, find_best_melds
+from agent.cards import Card, SUITS, RANKS, RANK_INDEX
+from agent.policy._meldcache import best_melds
 
 
 def deadwood(cards: List[Card]) -> int:
@@ -19,7 +20,7 @@ def deadwood(cards: List[Card]) -> int:
 
 def hand_deadwood(hand: List[Card]) -> int:
     """Deadwood of a hand under its best meld decomposition."""
-    _, dw = find_best_melds(hand)
+    _, dw = best_melds(hand)
     return deadwood(dw)
 
 
@@ -45,7 +46,7 @@ def melds_containing(d: Card) -> List[Tuple[Card, ...]]:
 
 def deadwood_after_discard(d: Card, hand: List[Card]) -> int:
     """D(d): our deadwood if we discard `d` (lower is better)."""
-    _, dw = find_best_melds([c for c in hand if c != d])
+    _, dw = best_melds([c for c in hand if c != d])
     return deadwood(dw)
 
 

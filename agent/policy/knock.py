@@ -18,8 +18,9 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from agent.cards import Card, make_deck, find_best_melds, is_set, is_run
+from agent.cards import Card, make_deck, is_set, is_run
 from agent.policy._features import deadwood
+from agent.policy._meldcache import best_melds
 
 _DECK = make_deck()
 
@@ -32,7 +33,7 @@ def knock_discard(hand: List[Card]) -> Tuple[int, Optional[Card], list]:
     best: Tuple[int, Optional[Card], list] = (10 ** 9, None, [])
     for d in hand:
         kept = [c for c in hand if c is not d]
-        melds, dw = find_best_melds(kept)
+        melds, dw = best_melds(kept)
         k = deadwood(dw)
         if k < best[0]:
             best = (k, d, melds)
@@ -78,13 +79,23 @@ def sample_opp_hands(bs, n_samples: int, rng: np.random.Generator) -> List[List[
     ui = np.where(uncertain)[0]
     pi = p[ui]
     n_slots = int(round(pi.sum()))          # == 10 - #certain
-    C = np.cumsum(pi)
     cert_cards = [_DECK[i] for i in np.where(certain)[0]]
+    if n_slots <= 0 or pi.sum() <= 0:
+        return [list(cert_cards) for _ in range(n_samples)]
+    # Madow systematic sampling requires the inclusion probabilities to sum
+    # exactly to the number of slots. Belief marginals can drift off an exact
+    # integer (round() above absorbs the drift into n_slots), so rescale pi to
+    # sum to n_slots; otherwise the top sample points overrun C and searchsorted
+    # returns len(ui), indexing out of bounds.
+    pi = pi * (n_slots / pi.sum())
+    C = np.cumsum(pi)
     base = np.arange(n_slots)
     starts = rng.random(n_samples)
+    last = len(ui) - 1
     hands = []
     for s in range(n_samples):
         sel = np.searchsorted(C, starts[s] + base, side='left')
+        np.clip(sel, 0, last, out=sel)     # float-safety at the top boundary
         hands.append(cert_cards + [_DECK[ui[j]] for j in sel])
     return hands
 
@@ -109,7 +120,7 @@ def knock_distribution(hand: List[Card], bs, n_samples: int = 2000,
     gains, ostars = [], []
     undercut = 0
     for opp in sample_opp_hands(bs, n_samples, rng):
-        _, o_dw = find_best_melds(opp)
+        _, o_dw = best_melds(opp)
         o_raw = deadwood(o_dw)
         if k == 0:
             gain, ostar = o_raw + 25, o_raw          # gin: opponent cannot lay off
