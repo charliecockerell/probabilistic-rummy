@@ -34,6 +34,7 @@ from agent.game import GameState
 from agent.bot import BotPlayer, GreedyPolicy
 from agent.eval.opponents import MeldSeekerPolicy, RationalOpponent
 from agent.policy import ProbabilisticPolicy
+from agent.policy.search import RolloutSearchPolicy
 
 
 # ── Policy interface + registry ────────────────────────────────────────────────
@@ -62,6 +63,17 @@ def _rational_factory(**kw) -> Policy:
     return RationalOpponent(w=kw.get("w", 2.0))
 
 
+def _search_factory(**kw) -> Policy:
+    return RolloutSearchPolicy(
+        alpha=kw.get("alpha", 0.1),
+        gamma=kw.get("gamma", 0.0),
+        kappa=kw.get("kappa", 0.0),
+        n_determinizations=kw.get("n_determinizations", 24),
+        knock_samples=kw.get("knock_samples", 200),
+        seed=kw.get("seed"),
+    )
+
+
 def _prob_factory(**kw) -> Policy:
     return ProbabilisticPolicy(
         alpha=kw.get("alpha", 0.1),
@@ -78,6 +90,7 @@ POLICY_REGISTRY: Dict[str, Tuple[Callable[..., Policy], bool]] = {
     "meld_seeker": (_meld_seeker_factory, False),
     "rational": (_rational_factory, False),
     "probabilistic": (_prob_factory, True),
+    "search": (_search_factory, True),
 }
 
 
