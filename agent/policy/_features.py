@@ -64,6 +64,18 @@ def risk_term(d: Card, bs) -> float:
                for x, y in melds_containing(d))
 
 
+def info_leak(top: Card, hand: List[Card]) -> float:
+    """How much taking `top` face-up reveals about our melds: the count of
+    `top`'s meld partners we already hold, over the concrete melds `top` could
+    form. Taking a card we're visibly building around leaks our intent (the
+    opponent will deny us the rest); an isolated pickup leaks ~0. Belief-free —
+    it prices what *we* reveal, not the opponent's hand. A far better info-leak
+    proxy than the card's point value (a lone King leaks nothing; the middle of
+    a building run leaks a lot)."""
+    held = set(hand)
+    return float(sum(c in held for partners in melds_containing(top) for c in partners))
+
+
 def position_cost(hand: List[Card], bs, alpha: float,
                   forbidden: Optional[Card] = None) -> Tuple[float, Optional[Card]]:
     """

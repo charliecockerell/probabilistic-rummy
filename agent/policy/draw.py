@@ -7,16 +7,17 @@ from stock, then discard back to 10.
   V_take  = position_cost(hand + [top], forbidden=top)   # can't re-discard top
   V_stock = sum_c P(top stock = c) * position_cost(hand + [c])
 
-Take the discard iff  V_take + info_penalty < V_stock, where the info penalty
-prices the leak from taking face-up (the opponent learns the card is useful
-to us).
+Take the discard iff  V_take + gamma * info_leak < V_stock, where info_leak
+prices the leak from taking face-up: the opponent learns the card is useful to
+us and defends its melds. The leak scales with how much taking `top` reveals
+(meld partners we already hold), NOT the card's point value.
 """
 
 from __future__ import annotations
 from typing import List
 
 from agent.cards import Card, make_deck
-from agent.policy._features import position_cost
+from agent.policy._features import position_cost, info_leak
 
 
 def stock_candidates(bs) -> List[Card]:
@@ -43,4 +44,5 @@ def value_stock(hand: List[Card], bs, alpha: float) -> float:
 def should_take_discard(hand: List[Card], top: Card, bs,
                         alpha: float = 0.1, gamma: float = 0.0) -> bool:
     """True iff taking the discard top beats drawing from stock."""
-    return value_take(hand, top, bs, alpha) + gamma * top.value < value_stock(hand, bs, alpha)  # info penalty is placeholder here to be tuned.
+    return (value_take(hand, top, bs, alpha) + gamma * info_leak(top, hand)
+            < value_stock(hand, bs, alpha))
