@@ -70,8 +70,15 @@ def _search_factory(**kw) -> Policy:
         kappa=kw.get("kappa", 0.0),
         n_determinizations=kw.get("n_determinizations", 24),
         knock_samples=kw.get("knock_samples", 200),
+        rollout_policy=kw.get("rollout_policy", "naive"),
         seed=kw.get("seed"),
     )
+
+
+def _search_smart_factory(**kw) -> Policy:
+    """Search with the probabilistic baseline as the playout policy."""
+    kw.setdefault("rollout_policy", "probabilistic")
+    return _search_factory(**kw)
 
 
 def _prob_factory(**kw) -> Policy:
@@ -91,6 +98,7 @@ POLICY_REGISTRY: Dict[str, Tuple[Callable[..., Policy], bool]] = {
     "rational": (_rational_factory, False),
     "probabilistic": (_prob_factory, True),
     "search": (_search_factory, True),
+    "search_smart": (_search_smart_factory, True),
 }
 
 
@@ -188,32 +196,48 @@ def _points_to(res: GameResult, seat: int) -> int:
     return res.score if res.winner == seat else -res.score
 
 
+def _play_indexed(subject: PolicySpec, opponent: PolicySpec,
+                  seed: int, sub_seat: int) -> GameResult:
+    """Build both agents for one game and play it. Pure function of its args
+    (no shared state), so it is safe to run in a worker process."""
+    sub_kind, sub_params = subject
+    opp_kind, opp_params = opponent
+    opp_seat = 1 - sub_seat
+
+    sub_agent = make_agent(sub_kind, sub_seat, seed=seed * 7 + 1, **sub_params)
+    opp_agent = make_agent(opp_kind, opp_seat, seed=seed * 7 + 2, **opp_params)
+    a0, a1 = (sub_agent, opp_agent) if sub_seat == 0 else (opp_agent, sub_agent)
+    return play_game(a0, a1, seed=seed)
+
+
 def run_match(subject: PolicySpec, opponent: PolicySpec, n_games: int = 100,
-              base_seed: int = 0, alternate_seats: bool = False) -> dict:
+              base_seed: int = 0, alternate_seats: bool = False,
+              n_jobs: int = 1) -> dict:
     """Play `n_games` between `subject` and `opponent`; return a metric panel
     (all metrics reported from the subject's perspective — no single objective).
 
     Each game is an independent random deal (base_seed + i). With
     `alternate_seats=True` the subject swaps seats on odd games to cancel the
     first-move advantage; default False keeps the simple fixed-seat setup.
+
+    `n_jobs` parallelises across games via joblib (-1 = all cores). Games are
+    independent and each carries a fixed seed, so the aggregated panel is
+    identical to the serial run regardless of `n_jobs` (only the per-process
+    meld cache differs, which is lossless). Default 1 runs serially and needs no
+    joblib — worth it for a slow subject (e.g. search) at large `n_games`.
     """
-    sub_kind, sub_params = subject
-    opp_kind, opp_params = opponent
+    seeds = [base_seed + i for i in range(n_games)]
+    subject_seats = [1 if (alternate_seats and i % 2 == 1) else 0
+                     for i in range(n_games)]
 
-    results: List[GameResult] = []
-    subject_seats: List[int] = []
-
-    for i in range(n_games):
-        seed = base_seed + i
-        sub_seat = 1 if (alternate_seats and i % 2 == 1) else 0
-        opp_seat = 1 - sub_seat
-
-        sub_agent = make_agent(sub_kind, sub_seat, seed=seed * 7 + 1, **sub_params)
-        opp_agent = make_agent(opp_kind, opp_seat, seed=seed * 7 + 2, **opp_params)
-        a0, a1 = (sub_agent, opp_agent) if sub_seat == 0 else (opp_agent, sub_agent)
-
-        results.append(play_game(a0, a1, seed=seed))
-        subject_seats.append(sub_seat)
+    if n_jobs in (1, None):
+        results = [_play_indexed(subject, opponent, s, seat)
+                   for s, seat in zip(seeds, subject_seats)]
+    else:
+        from joblib import Parallel, delayed   # lazy: only needed when parallel
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(_play_indexed)(subject, opponent, s, seat)
+            for s, seat in zip(seeds, subject_seats))
 
     return _aggregate(results, subject_seats, n_games)
 
