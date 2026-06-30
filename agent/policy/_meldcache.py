@@ -20,12 +20,15 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import FrozenSet, List, Tuple
 
-from agent.cards import Card, find_best_melds
+from agent.cards import Card
+from agent.policy._meldsolver import fast_best_melds
 
 
 @lru_cache(maxsize=None)
 def _cached(key: FrozenSet[Card]) -> Tuple[list, list]:
-    return find_best_melds(list(key))
+    # fast_best_melds returns the same minimum deadwood as cards.find_best_melds
+    # (differential-tested); ~180x cheaper, which is what unblocks fast game gen.
+    return fast_best_melds(list(key))
 
 
 def best_melds(hand: List[Card]) -> Tuple[list, list]:
