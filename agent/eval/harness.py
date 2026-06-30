@@ -33,7 +33,7 @@ from agent.cards import Card, find_best_melds
 from agent.game import GameState
 from agent.bot import BotPlayer, GreedyPolicy
 from agent.eval.opponents import MeldSeekerPolicy, RationalOpponent
-from agent.policy import ProbabilisticPolicy
+from agent.policy import ProbabilisticPolicy, DetDrawPolicy
 from agent.policy.search import RolloutSearchPolicy
 
 
@@ -91,12 +91,25 @@ def _prob_factory(**kw) -> Policy:
     )
 
 
+def _prob_detdraw_factory(**kw) -> Policy:
+    """Probabilistic baseline with the draw decided by determinized lookahead."""
+    return DetDrawPolicy(
+        alpha=kw.get("alpha", 0.1),
+        gamma=kw.get("gamma", 0.0),
+        kappa=kw.get("kappa", 0.0),
+        knock_samples=kw.get("knock_samples", 400),
+        n_det=kw.get("n_det", 24),
+        seed=kw.get("seed"),
+    )
+
+
 # name -> (policy factory, uses_belief). Register MCTS / RL here when built.
 POLICY_REGISTRY: Dict[str, Tuple[Callable[..., Policy], bool]] = {
     "greedy": (_greedy_factory, False),
     "meld_seeker": (_meld_seeker_factory, False),
     "rational": (_rational_factory, False),
     "probabilistic": (_prob_factory, True),
+    "prob_detdraw": (_prob_detdraw_factory, True),
     "search": (_search_factory, True),
     "search_smart": (_search_smart_factory, True),
 }

@@ -21,9 +21,11 @@ agent/eval/                     simulation, opponents, metrics
 - **The baseline ties `greedy`** — win ~0.515 over 2000 games (p=0.17). Greedy is
   strong on fundamentals and belief-illegible, so the soft inference the policy
   leans on has little to exploit.
-- **Parameters confirmed**: `alpha` is opponent-dependent and
-  win-neutral vs greedy; `kappa` is inert then harmful; `gamma` (info-leak
-  penalty) is a confirmed no-op.
+- **Parameters are neutral**: `alpha` is opponent-dependent and win-neutral vs
+  greedy; `kappa` is inert then harmful; `gamma` (info-leak penalty) is a no-op.
+- **Search policies are ineffective.** Determinized rollout was tried on every
+  decision and never beat the one-ply baseline — discard search ties it
+  (`search` / `search_smart`), the optimal-stopping knock is the only marginal increase.
 
 Chosen parameters: `alpha=0.1, gamma=0.0, kappa=0.0, mu=0.4, nu=2.0, lam=0.4`.
 
@@ -38,5 +40,6 @@ pytest                              # inference tests
 
 ## Next
 
-A search policy (determinized expectimax, then information-set MCTS) over the
-validated belief.
+A learned policy. Since the belief is the bottleneck rather than the action rule,
+the next bot is given only raw observations — its hand and the public discard
+history, no `P(card)` — and must learn its own inference and strategy.

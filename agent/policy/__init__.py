@@ -29,13 +29,15 @@ from agent.policy.knock import (
     knock_discard, can_knock, layoff_reduce,
     sample_opp_hands, knock_distribution, should_knock,
 )
+from agent.policy.draw_det import determinize, draw_values
 
 __all__ = [
-    "ProbabilisticPolicy",
+    "ProbabilisticPolicy", "DetDrawPolicy",
     "deadwood", "hand_deadwood", "melds_containing",
     "deadwood_after_discard", "risk_term", "position_cost",
     "discard_score", "best_discard",
     "stock_candidates", "value_take", "value_stock", "should_take_discard",
+    "determinize", "draw_values",
     "knock_discard", "can_knock", "layoff_reduce",
     "sample_opp_hands", "knock_distribution", "should_knock",
 ]
@@ -74,3 +76,17 @@ class ProbabilisticPolicy:
     def should_knock(self, hand: List[Card], bs) -> bool:
         """Whether to knock from an 11-card hand."""
         return should_knock(hand, bs, self.kappa, self.knock_samples, self.rng)
+
+
+class DetDrawPolicy(ProbabilisticPolicy):
+    """Probabilistic baseline with the *draw* decided by determinized lookahead
+    (see `draw_det.draw_values`) instead of the one-ply rule. `n_det` is the
+    number of sampled worlds per draw; everything else matches the baseline."""
+
+    def __init__(self, *args, n_det: int = 24, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.n_det = n_det
+
+    def choose_draw(self, hand: List[Card], bs, discard_top: Card) -> str:
+        v_take, v_stock = draw_values(hand, discard_top, bs, self.n_det, self.rng)
+        return "discard" if v_take >= v_stock else "stock"
